@@ -88,7 +88,7 @@ function update( options ) {
 
 	_resembleOutputSettings = options.outputSettings || _resembleOutputSettings;
 
-	_resembleOutputSettings.useCrossOrigin=false; // turn off x-origin attr in Resemble to support SlimerJS 
+	_resembleOutputSettings.useCrossOrigin=false; // turn off x-origin attr in Resemble to support SlimerJS
 
 	_cleanupComparisonImages = options.cleanupComparisonImages || _cleanupComparisonImages;
 
@@ -345,29 +345,46 @@ function removeFile( filepath ) {
 
 function asyncCompare( one, two, func ) {
 
-	if ( !casper.evaluate( function () {
-			return window._imagediff_;
-		} ) ) {
-		initClient();
-	}
+    function initAndDiff() {
+        if ( !casper.evaluate( function () {
+                return window._imagediff_;
+            } ) ) {
+            initClient();
+        }
 
-	casper.fillSelectors( 'form#image-diff-form', {
-		'[name=one]': one,
-		'[name=two]': two
-	} );
+        casper.fillSelectors( 'form#image-diff-form', {
+            '[name=one]': one,
+            '[name=two]': two
+        } );
 
-	casper.evaluate( function ( filename ) {
-		window._imagediff_.run( filename );
-	}, {
-		label: _addLabelToFailedImage ? one : false
-	} );
+        casper.evaluate( function ( filename ) {
+            window._imagediff_.run( filename );
+        }, {
+            label: _addLabelToFailedImage ? one : false
+        } );
+    }
+
+    initAndDiff();
 
 	casper.waitFor(
-		function check() {
-			return this.evaluate( function () {
-				return window._imagediff_.hasResult;
-			} );
-		},
+        function check() {
+
+            // There is a bug with large images, sometimes the page reloads
+            // if we are running tests on large images, so we make sure that
+            // if it happens we re-init the client
+            var imageDiff = this.evaluate(function () {
+                return window._imagediff_;
+            });
+
+            if (!imageDiff) {
+                initAndDiff();
+                return false;
+            }
+
+            return this.evaluate( function () {
+                return window._imagediff_.hasResult;
+            } );
+        },
 		function () {
 
 			var mismatch = casper.evaluate( function () {
